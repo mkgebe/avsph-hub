@@ -8,12 +8,8 @@ import {
 } from "@/hooks/api/auth/staff.auth";
 import type { StaffLoginRequest } from "@/types/staff.types";
 import { useStaffStore } from "@/store/staff.store";
-import { AxiosError } from "axios";
-
-interface ApiError {
-  error?: string;
-  message?: string;
-}
+import { useAdminStore } from "@/store/admin.store";
+import { getApiErrorMessage, hasAuthToken } from "@/utils/api";
 
 export const useStaffLogin = () => {
   const router = useRouter();
@@ -28,10 +24,13 @@ export const useStaffLogin = () => {
     onSuccess: (data) => {
       // Save token in cookie
       setStaffAuthToken(data.token);
+      // Both roles share one auth cookie, so a leftover admin session would
+      // otherwise keep claiming to be authenticated with a staff token.
+      useAdminStore.getState().reset();
       // Update zustand store
       setStaff(data.staff);
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["staff", "me"] });
+      // Drop any cached data belonging to the previous session
+      queryClient.clear();
       // Show success toast
       toast.success("Welcome back!", {
         description: `Logged in as ${data.staff.firstName} ${data.staff.lastName}`,
@@ -39,13 +38,9 @@ export const useStaffLogin = () => {
       // Redirect to staff dashboard
       router.push("/dashboard");
     },
-    onError: (error: AxiosError<ApiError>) => {
-      const message =
-        error.response?.data?.error ||
-        error.response?.data?.message ||
-        "Invalid email or password";
+    onError: (error) => {
       toast.error("Login failed", {
-        description: message,
+        description: getApiErrorMessage(error, "Invalid email or password."),
       });
     },
     onSettled: () => {
@@ -55,9 +50,13 @@ export const useStaffLogin = () => {
 };
 
 export const useCurrentStaff = () => {
+  const isAuthenticated = useStaffStore((state) => state.isAuthenticated);
+
   return useQuery({
     queryKey: ["staff", "me"],
     queryFn: getCurrentStaff,
+    // See useCurrentAdmin: skip the lookup when there is no token to check.
+    enabled: isAuthenticated || hasAuthToken(),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -70,6 +69,8 @@ export const useStaffLogout = () => {
 
   return () => {
     logout();
+    // The cookie is shared, so signing out of one role signs out of both.
+    useAdminStore.getState().reset();
     queryClient.clear();
     toast.success("Logged out", {
       description: "You have been signed out successfully.",

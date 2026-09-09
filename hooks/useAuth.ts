@@ -9,12 +9,8 @@ import {
 } from "@/hooks/api/auth/auth";
 import type { LoginRequest, RegisterRequest } from "@/types/auth.types";
 import { useAdminStore } from "@/store/admin.store";
-import { AxiosError } from "axios";
-
-interface ApiError {
-  error?: string;
-  message?: string;
-}
+import { useStaffStore } from "@/store/staff.store";
+import { getApiErrorMessage, hasAuthToken } from "@/utils/api";
 
 export const useLogin = () => {
   const router = useRouter();
@@ -29,10 +25,13 @@ export const useLogin = () => {
     onSuccess: (data) => {
       // Save token in cookie
       setAuthToken(data.token);
+      // Both roles share one auth cookie, so a leftover staff session would
+      // otherwise keep claiming to be authenticated with an admin token.
+      useStaffStore.getState().reset();
       // Update zustand store
       setAdmin(data.admin);
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["admin", "me"] });
+      // Drop any cached data belonging to the previous session
+      queryClient.clear();
       // Show success toast
       toast.success("Welcome back!", {
         description: `Logged in as ${data.admin.firstName} ${data.admin.lastName}`,
@@ -40,13 +39,9 @@ export const useLogin = () => {
       // Redirect to dashboard
       router.push("/overview");
     },
-    onError: (error: AxiosError<ApiError>) => {
-      const message =
-        error.response?.data?.error ||
-        error.response?.data?.message ||
-        "Invalid email or password";
+    onError: (error) => {
       toast.error("Login failed", {
-        description: message,
+        description: getApiErrorMessage(error, "Invalid email or password."),
       });
     },
     onSettled: () => {
@@ -71,13 +66,9 @@ export const useRegister = () => {
       // Redirect to login after registration
       router.push("/login");
     },
-    onError: (error: AxiosError<ApiError>) => {
-      const message =
-        error.response?.data?.error ||
-        error.response?.data?.message ||
-        "Registration failed";
+    onError: (error) => {
       toast.error("Registration failed", {
-        description: message,
+        description: getApiErrorMessage(error, "Registration failed."),
       });
     },
     onSettled: () => {
@@ -87,9 +78,14 @@ export const useRegister = () => {
 };
 
 export const useCurrentAdmin = () => {
+  const isAuthenticated = useAdminStore((state) => state.isAuthenticated);
+
   return useQuery({
     queryKey: ["admin", "me"],
     queryFn: getCurrentAdmin,
+    // With no token at all there is nobody to look up, and firing the request
+    // anyway just produces a 401 on every visit to a protected page.
+    enabled: isAuthenticated || hasAuthToken(),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -102,6 +98,8 @@ export const useLogout = () => {
 
   return () => {
     logout();
+    // The cookie is shared, so signing out of one role signs out of both.
+    useStaffStore.getState().reset();
     queryClient.clear();
     toast.success("Logged out", {
       description: "You have been signed out successfully.",

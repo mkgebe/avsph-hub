@@ -16,7 +16,10 @@ export const registerAdmin = async (data: RegisterRequest): Promise<Admin> => {
     return response.data;
 };
 
+// A 401 here means "this token is not an admin token", not "the session is
+// dead" - pages such as /docs probe both roles. Callers decide what to do,
+// so this request opts out of the global redirect-to-login.
 export const getCurrentAdmin = async (): Promise<Admin> => {
-    const response = await api.get<Admin>('/admin/me');
+    const response = await api.get<Admin>('/admin/me', { skipAuthRedirect: true });
     return response.data;
 };
