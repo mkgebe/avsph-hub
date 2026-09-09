@@ -11,6 +11,7 @@ import type { LoginRequest, RegisterRequest } from "@/types/auth.types";
 import { useAdminStore } from "@/store/admin.store";
 import { useStaffStore } from "@/store/staff.store";
 import { getApiErrorMessage, hasAuthToken } from "@/utils/api";
+import { supabase } from "@/utils/supabase/client";
 
 export const useLogin = () => {
   const router = useRouter();
@@ -96,7 +97,10 @@ export const useLogout = () => {
   const queryClient = useQueryClient();
   const { logout } = useAdminStore();
 
-  return () => {
+  return async () => {
+    // End the Supabase session first; the stores and cookie are only a
+    // local mirror of it.
+    await supabase.auth.signOut();
     logout();
     // The cookie is shared, so signing out of one role signs out of both.
     useStaffStore.getState().reset();

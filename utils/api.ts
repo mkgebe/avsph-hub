@@ -91,7 +91,11 @@ export const getApiErrorMessage = (
     error: unknown,
     fallback = 'Something went wrong. Please try again.',
 ): string => {
-    if (!axios.isAxiosError(error)) return fallback;
+    // Supabase and other non-axios callers throw plain Errors whose message
+    // is already the thing worth showing.
+    if (!axios.isAxiosError(error)) {
+        return error instanceof Error && error.message ? error.message : fallback;
+    }
 
     const axiosError = error as AxiosError<ApiErrorBody>;
     const status = axiosError.response?.status;
