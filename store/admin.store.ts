@@ -12,6 +12,7 @@ interface AdminState {
   setAdmin: (admin: Admin) => void;
   setLoading: (loading: boolean) => void;
   logout: () => void;
+  reset: () => void;
 
   // Role-based helpers
   isSuperAdmin: () => boolean;
@@ -33,6 +34,10 @@ export const useAdminStore = create<AdminState>()(
         clearAuthToken();
         set({ admin: null, isAuthenticated: false });
       },
+
+      // Clears this store without touching the shared auth cookie, so the
+      // other role's login can reset stale state after setting its token.
+      reset: () => set({ admin: null, isAuthenticated: false }),
 
       // Check if current admin is super-admin
       isSuperAdmin: () => {

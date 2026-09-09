@@ -3,7 +3,6 @@ import type {
   StaffLoginRequest,
   StaffLoginResponse,
   Staff,
-  StaffDocument,
 } from "@/types/staff.types";
 
 // Re-export for backward compatibility (alias)
@@ -17,7 +16,9 @@ export const loginStaff = async (
   return response.data;
 };
 
+// See getCurrentAdmin: a 401 means "not a staff token", so this request opts
+// out of the global redirect-to-login.
 export const getCurrentStaff = async (): Promise<Staff> => {
-  const response = await api.get<Staff>("/staff/me");
+  const response = await api.get<Staff>("/staff/me", { skipAuthRedirect: true });
   return response.data;
 };
