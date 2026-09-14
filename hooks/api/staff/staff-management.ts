@@ -41,20 +41,23 @@ const authedFetch = async (url: string, init: RequestInit): Promise<unknown> => 
 };
 
 /**
- * Documents live in a private bucket, so the stored `url` is an object path.
- * Exchange those paths for short-lived signed URLs the UI can render.
+ * Documents uploaded here live in a private bucket, so the stored `url` is
+ * an object path that has to be exchanged for a short-lived signed URL.
+ * Documents carried over from the old backend are already absolute URLs on
+ * their original host, so those pass through untouched.
  */
 const withSignedDocumentUrls = async (
   rows: StaffDocumentRow[],
 ): Promise<StaffDocumentRow[]> => {
-  if (rows.length === 0) return rows;
+  const paths = rows
+    .map((row) => row.url)
+    .filter((url) => !/^https?:\/\//i.test(url));
+
+  if (paths.length === 0) return rows;
 
   const { data, error } = await supabase.storage
     .from(DOCUMENT_BUCKET)
-    .createSignedUrls(
-      rows.map((row) => row.url),
-      SIGNED_URL_TTL_SECONDS,
-    );
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
 
   if (error) throw new Error(error.message);
 
