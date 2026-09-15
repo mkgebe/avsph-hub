@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Admin } from "@/types/admin.types";
 import { clearAuthToken } from "@/utils/api";
+import { supabase } from "@/lib/supabase";
 
 interface AdminState {
   admin: Admin | null;
@@ -31,6 +32,9 @@ export const useAdminStore = create<AdminState>()(
       setAdmin: (admin) => set({ admin, isAuthenticated: true }),
       setLoading: (isLoading) => set({ isLoading }),
       logout: () => {
+        // End the Supabase session too, or the browser keeps a live
+        // session for an account the app has just signed out.
+        void supabase.auth.signOut();
         clearAuthToken();
         set({ admin: null, isAuthenticated: false });
       },

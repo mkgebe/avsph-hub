@@ -5,12 +5,12 @@ import {
   loginAdmin,
   registerAdmin,
   getCurrentAdmin,
-  setAuthToken,
+  signOut,
 } from "@/hooks/api/auth/auth";
 import type { LoginRequest, RegisterRequest } from "@/types/auth.types";
 import { useAdminStore } from "@/store/admin.store";
 import { useStaffStore } from "@/store/staff.store";
-import { getApiErrorMessage, hasAuthToken } from "@/utils/api";
+import { getErrorMessage } from "@/lib/errors";
 
 export const useLogin = () => {
   const router = useRouter();
@@ -23,10 +23,8 @@ export const useLogin = () => {
       setLoading(true);
     },
     onSuccess: (data) => {
-      // Save token in cookie
-      setAuthToken(data.token);
-      // Both roles share one auth cookie, so a leftover staff session would
-      // otherwise keep claiming to be authenticated with an admin token.
+      // Both roles share one Supabase session, so a leftover staff session
+      // would otherwise keep claiming to be authenticated as staff.
       useStaffStore.getState().reset();
       // Update zustand store
       setAdmin(data.admin);
@@ -41,7 +39,7 @@ export const useLogin = () => {
     },
     onError: (error) => {
       toast.error("Login failed", {
-        description: getApiErrorMessage(error, "Invalid email or password."),
+        description: getErrorMessage(error, "Invalid email or password."),
       });
     },
     onSettled: () => {
@@ -68,7 +66,7 @@ export const useRegister = () => {
     },
     onError: (error) => {
       toast.error("Registration failed", {
-        description: getApiErrorMessage(error, "Registration failed."),
+        description: getErrorMessage(error, "Registration failed."),
       });
     },
     onSettled: () => {
@@ -78,14 +76,12 @@ export const useRegister = () => {
 };
 
 export const useCurrentAdmin = () => {
-  const isAuthenticated = useAdminStore((state) => state.isAuthenticated);
-
   return useQuery({
     queryKey: ["admin", "me"],
     queryFn: getCurrentAdmin,
-    // With no token at all there is nobody to look up, and firing the request
-    // anyway just produces a 401 on every visit to a protected page.
-    enabled: isAuthenticated || hasAuthToken(),
+    // Supabase keeps the session in the browser, so this starts as a local
+    // check and only reaches the network to load the profile row. There is
+    // nothing to gate on.
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -96,9 +92,10 @@ export const useLogout = () => {
   const queryClient = useQueryClient();
   const { logout } = useAdminStore();
 
-  return () => {
+  return async () => {
+    // One Supabase session backs both roles, so signing out ends both.
+    await signOut();
     logout();
-    // The cookie is shared, so signing out of one role signs out of both.
     useStaffStore.getState().reset();
     queryClient.clear();
     toast.success("Logged out", {

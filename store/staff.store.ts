@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Staff } from "@/types/staff.types";
 import { clearAuthToken } from "@/utils/api";
+import { supabase } from "@/lib/supabase";
 
 interface StaffState {
     staff: Staff | null;
@@ -30,7 +31,13 @@ export const useStaffStore = create<StaffState>()(
             setStaff: (staff) => set({ staff, isAuthenticated: true }),
             setLoading: (isLoading) => set({ isLoading }),
             logout: () => {
-                clearAuthToken();
+                // End the Supabase session too, or the browser keeps a live
+                // session for an account the app has just signed out.
+                void supabase.auth.signOut();
+                // End the Supabase session too, or the browser keeps a live
+        // session for an account the app has just signed out.
+        void supabase.auth.signOut();
+        clearAuthToken();
                 set({ staff: null, isAuthenticated: false });
             },
 

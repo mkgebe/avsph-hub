@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { useLogin } from "@/hooks/useAuth";
 import { useStaffLogin } from "@/hooks/useAuthStaff";
 import { cn } from "@/lib/utils";
-import { getApiBaseUrl, getApiErrorMessage, isApiUrlConfigured } from "@/utils/api";
+import { getErrorMessage } from "@/lib/errors";
+import { getSupabaseUrl, isSupabaseConfigured } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 
 type LoginMode = "admin" | "staff";
@@ -26,13 +27,11 @@ export default function LoginPage() {
   const staffLogin = useStaffLogin();
   const activeLogin = mode === "admin" ? adminLogin : staffLogin;
 
-  // A deployed build with no NEXT_PUBLIC_API_URL points every request at the
-  // visitor's own machine, so no password will ever work. Say it on screen
-  // instead of leaving people to retry their credentials.
+  // Without the Supabase URL and key there is nothing to sign in against, so
+  // no password will ever work. Say it on screen instead of leaving people to
+  // retry their credentials.
   useEffect(() => {
-    setApiMisconfigured(
-      !isApiUrlConfigured() && window.location.hostname !== "localhost",
-    );
+    setApiMisconfigured(!isSupabaseConfigured);
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -60,7 +59,7 @@ export default function LoginPage() {
   // The toast disappears on its own; the failure has to stay readable while
   // the person decides what to do about it.
   const errorMessage = activeLogin.error
-    ? getApiErrorMessage(activeLogin.error, "Invalid email or password.")
+    ? getErrorMessage(activeLogin.error, "Invalid email or password.")
     : null;
 
   return (
@@ -149,9 +148,9 @@ export default function LoginPage() {
             <div className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <p>
-                This site has no API address configured, so sign-in cannot
-                reach the server. Set NEXT_PUBLIC_API_URL in the deployment
-                and redeploy.
+                This site has no Supabase connection configured, so sign-in
+                cannot work. Set NEXT_PUBLIC_SUPABASE_URL and
+                NEXT_PUBLIC_SUPABASE_ANON_KEY in the deployment and redeploy.
               </p>
             </div>
           )}
@@ -238,7 +237,7 @@ export default function LoginPage() {
                 className="text-center text-xs text-muted-foreground"
                 aria-live="polite"
               >
-                Still waiting for {getApiBaseUrl()} to respond...
+                Still waiting for {getSupabaseUrl()} to respond...
               </p>
             )}
 

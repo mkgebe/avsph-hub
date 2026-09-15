@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Topbar } from "@/components/topbar";
 import { useAdminStore } from "@/store/admin.store";
 import { useCurrentAdmin } from "@/hooks/useAuth";
-import { isAuthError } from "@/utils/api";
+import { isSessionRejection } from "@/lib/errors";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -20,7 +20,7 @@ export default function DashboardLayout({
   // A rejected token ends the session; an unreachable API does not. Signing
   // out on a timeout drops people back on the login page right after a
   // successful sign-in, which reads as "login does not work".
-  const sessionRejected = isAuthError(error);
+  const sessionRejected = isSessionRejection(error);
 
   // Detect if we're on a business detail page (has its own layout with sidebar)
   const isBusinessRoute = pathname.startsWith("/business/");

@@ -1,15 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  loginStaff,
-  getCurrentStaff,
-  setStaffAuthToken,
-} from "@/hooks/api/auth/staff.auth";
+import { loginStaff, getCurrentStaff } from "@/hooks/api/auth/staff.auth";
+import { signOut } from "@/hooks/api/auth/auth";
 import type { StaffLoginRequest } from "@/types/staff.types";
 import { useStaffStore } from "@/store/staff.store";
 import { useAdminStore } from "@/store/admin.store";
-import { getApiErrorMessage, hasAuthToken } from "@/utils/api";
+import { getErrorMessage } from "@/lib/errors";
 
 export const useStaffLogin = () => {
   const router = useRouter();
@@ -22,10 +19,8 @@ export const useStaffLogin = () => {
       setLoading(true);
     },
     onSuccess: (data) => {
-      // Save token in cookie
-      setStaffAuthToken(data.token);
-      // Both roles share one auth cookie, so a leftover admin session would
-      // otherwise keep claiming to be authenticated with a staff token.
+      // Both roles share one Supabase session, so a leftover admin session
+      // would otherwise keep claiming to be authenticated as an admin.
       useAdminStore.getState().reset();
       // Update zustand store
       setStaff(data.staff);
@@ -40,7 +35,7 @@ export const useStaffLogin = () => {
     },
     onError: (error) => {
       toast.error("Login failed", {
-        description: getApiErrorMessage(error, "Invalid email or password."),
+        description: getErrorMessage(error, "Invalid email or password."),
       });
     },
     onSettled: () => {
@@ -50,13 +45,10 @@ export const useStaffLogin = () => {
 };
 
 export const useCurrentStaff = () => {
-  const isAuthenticated = useStaffStore((state) => state.isAuthenticated);
-
   return useQuery({
     queryKey: ["staff", "me"],
     queryFn: getCurrentStaff,
-    // See useCurrentAdmin: skip the lookup when there is no token to check.
-    enabled: isAuthenticated || hasAuthToken(),
+    // See useCurrentAdmin: the session is local, so there is nothing to gate on.
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -67,9 +59,10 @@ export const useStaffLogout = () => {
   const queryClient = useQueryClient();
   const { logout } = useStaffStore();
 
-  return () => {
+  return async () => {
+    // One Supabase session backs both roles, so signing out ends both.
+    await signOut();
     logout();
-    // The cookie is shared, so signing out of one role signs out of both.
     useAdminStore.getState().reset();
     queryClient.clear();
     toast.success("Logged out", {
