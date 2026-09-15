@@ -154,7 +154,7 @@ export const onboardingSections: DocGroup[] = [
                 <p>
                   Inform HR of your new email by sending an email to{" "}
                   <a
-                    href="mailto:admin@av sph.com"
+                    href="mailto:admin@advancedvirtualstaff.com"
                     className="text-primary hover:underline"
                   >
                     admin@advancedvirtualstaff.com
@@ -477,7 +477,7 @@ export const onboardingSections: DocGroup[] = [
                       <strong className="text-foreground">
                         Payroll Issues:
                       </strong>{" "}
-                      accounting@advancedvirtualsaff.com
+                      accounting@advancedvirtualstaff.com
                     </li>
                     <li>
                       <strong className="text-foreground">
