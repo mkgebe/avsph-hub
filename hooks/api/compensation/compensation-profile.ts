@@ -1,4 +1,10 @@
-import api from "@/utils/api";
+import { supabase } from "@/lib/supabase";
+import {
+  COMPENSATION_COLUMNS,
+  toColumns,
+  toCompensationProfile,
+  type CompensationProfileRow,
+} from "@/lib/mappers";
 import type {
   CompensationProfile,
   CompensationProfileListQuery,
@@ -9,30 +15,45 @@ import type {
 export const createCompensationProfile = async (
   data: CreateCompensationProfileRequest,
 ): Promise<CompensationProfile> => {
-  const response = await api.post<CompensationProfile>("/compensation-profiles", data);
-  return response.data;
+  const { data: row, error } = await supabase
+    .from("compensation_profiles")
+    .insert(toColumns(data, COMPENSATION_COLUMNS))
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toCompensationProfile(row as CompensationProfileRow);
 };
 
 export const getCompensationProfiles = async (
   query: CompensationProfileListQuery,
 ): Promise<CompensationProfile[]> => {
-  const params = new URLSearchParams();
-  params.append("businessId", query.businessId);
+  let request = supabase
+    .from("compensation_profiles")
+    .select()
+    .eq("business_id", query.businessId);
+
   if (query.isActive !== undefined) {
-    params.append("isActive", String(query.isActive));
+    request = request.eq("is_active", query.isActive);
   }
 
-  const queryString = params.toString();
-  const response = await api.get<CompensationProfile[]>(
-    `/compensation-profiles${queryString ? `?${queryString}` : ""}`,
-  );
-  return response.data;
+  const { data, error } = await request.order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data as CompensationProfileRow[]).map(toCompensationProfile);
 };
 
 export const updateCompensationProfile = async (
   id: string,
   data: UpdateCompensationProfileRequest,
 ): Promise<CompensationProfile> => {
-  const response = await api.patch<CompensationProfile>(`/compensation-profiles/${id}`, data);
-  return response.data;
+  const { data: row, error } = await supabase
+    .from("compensation_profiles")
+    .update(toColumns(data, COMPENSATION_COLUMNS))
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toCompensationProfile(row as CompensationProfileRow);
 };

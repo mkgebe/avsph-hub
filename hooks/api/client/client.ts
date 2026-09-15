@@ -1,4 +1,13 @@
-import api from "@/utils/api";
+import { supabase } from "@/lib/supabase";
+import {
+  CLIENT_COLUMNS,
+  STAFF_SELECT,
+  toClient,
+  toColumns,
+  toStaff,
+  type ClientRow,
+  type StaffRow,
+} from "@/lib/mappers";
 import type {
   Client,
   ClientListQuery,
@@ -13,93 +22,113 @@ import type {
 } from "@/types/client.types";
 import type { Staff } from "@/types/staff.types";
 
-const analyticsQueryString = (q?: AnalyticsQuery): string => {
-  const params = new URLSearchParams();
-  if (q?.from) params.append("from", q.from);
-  if (q?.to) params.append("to", q.to);
-  const s = params.toString();
-  return s ? `?${s}` : "";
-};
-
 export const getClients = async (
   query: ClientListQuery,
 ): Promise<Client[]> => {
-  const params = new URLSearchParams();
-  params.append("businessId", query.businessId);
-  if (query.status) params.append("status", query.status);
+  let request = supabase
+    .from("clients")
+    .select()
+    .eq("business_id", query.businessId);
+
+  if (query.status) request = request.eq("status", query.status);
   if (query.isActive !== undefined) {
-    params.append("isActive", String(query.isActive));
+    request = request.eq("is_active", query.isActive);
   }
 
-  const queryString = params.toString();
-  const response = await api.get<Client[]>(
-    `/clients${queryString ? `?${queryString}` : ""}`,
-  );
-  return response.data;
+  const { data, error } = await request.order("name");
+
+  if (error) throw new Error(error.message);
+  return (data as ClientRow[]).map(toClient);
 };
 
 export const getClientById = async (id: string): Promise<Client> => {
-  const response = await api.get<Client>(`/clients/${id}`);
-  return response.data;
+  const { data, error } = await supabase
+    .from("clients")
+    .select()
+    .eq("id", id)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toClient(data as ClientRow);
 };
 
 export const createClient = async (
   data: CreateClientRequest,
 ): Promise<Client> => {
-  const response = await api.post<Client>("/clients", data);
-  return response.data;
+  const { data: row, error } = await supabase
+    .from("clients")
+    .insert(toColumns(data, CLIENT_COLUMNS))
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toClient(row as ClientRow);
 };
 
 export const updateClient = async (
   id: string,
   data: UpdateClientRequest,
 ): Promise<Client> => {
-  const response = await api.patch<Client>(`/clients/${id}`, data);
-  return response.data;
+  const { data: row, error } = await supabase
+    .from("clients")
+    .update(toColumns(data, CLIENT_COLUMNS))
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return toClient(row as ClientRow);
 };
 
 export const deleteClient = async (
   id: string,
 ): Promise<DeleteClientResponse> => {
-  const response = await api.delete<DeleteClientResponse>(`/clients/${id}`);
-  return response.data;
+  const { error } = await supabase
+    .from("clients")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+  return { message: "Client deleted." };
 };
 
 export const getClientStaff = async (id: string): Promise<Staff[]> => {
-  const response = await api.get<Staff[]>(`/clients/${id}/staff`);
-  return response.data;
+  const { data, error } = await supabase
+    .from("staff")
+    .select(STAFF_SELECT)
+    .eq("client_id", id)
+    .order("first_name");
+
+  if (error) throw new Error(error.message);
+  return (data as StaffRow[]).map(toStaff);
 };
 
+// Not migrated. Every figure these three produce (hours worked, pay, billable
+// amounts, margins) is derived from end-of-day reports, attendance and
+// invoices, and none of those have tables in the Supabase schema yet. They
+// would return zeroes dressed up as real numbers, which is worse than an
+// honest failure.
+const NO_REPORTING_DATA =
+  "Client reporting is not available yet: end-of-day reports, attendance and " +
+  "invoices have no tables in the database.";
+
 export const getBusinessClientAnalytics = async (
-  businessId: string,
-  query?: AnalyticsQuery,
+  _businessId: string,
+  _query?: AnalyticsQuery,
 ): Promise<BusinessClientAnalytics> => {
-  const response = await api.get<BusinessClientAnalytics>(
-    `/businesses/${businessId}/clients/analytics${analyticsQueryString(query)}`,
-  );
-  return response.data;
+  throw new Error(NO_REPORTING_DATA);
 };
 
 export const getClientAnalytics = async (
-  id: string,
-  query?: AnalyticsQuery,
+  _id: string,
+  _query?: AnalyticsQuery,
 ): Promise<ClientAnalytics> => {
-  const response = await api.get<ClientAnalytics>(
-    `/clients/${id}/analytics${analyticsQueryString(query)}`,
-  );
-  return response.data;
+  throw new Error(NO_REPORTING_DATA);
 };
 
 export const getClientWeeklyReport = async (
-  id: string,
-  range?: WeeklyReportQuery,
+  _id: string,
+  _range?: WeeklyReportQuery,
 ): Promise<WeeklyReport> => {
-  const params = new URLSearchParams();
-  if (range?.from) params.append("from", range.from);
-  if (range?.to) params.append("to", range.to);
-  const queryString = params.toString();
-  const response = await api.get<WeeklyReport>(
-    `/clients/${id}/weekly-report${queryString ? `?${queryString}` : ""}`,
-  );
-  return response.data;
+  throw new Error(NO_REPORTING_DATA);
 };
