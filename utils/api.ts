@@ -29,6 +29,19 @@ const resolveBaseUrl = (): string => {
 
 const API_BASE_URL = resolveBaseUrl();
 
+// Sign-in is interactive: somebody is watching the button spin. A stalled API
+// has to be reported in seconds, not after the generous timeout that long
+// report and export requests need.
+export const AUTH_TIMEOUT_MS = 12000;
+
+// The base URL the client is actually talking to, for diagnostics on screen.
+export const getApiBaseUrl = (): string => API_BASE_URL;
+
+// True when NEXT_PUBLIC_API_URL was missing at build time, so every request is
+// aimed at the visitor's own machine and nothing can ever succeed.
+export const isApiUrlConfigured = (): boolean =>
+    Boolean(process.env.NEXT_PUBLIC_API_URL);
+
 // Create axios instance
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -112,6 +125,15 @@ export const getApiErrorMessage = (
     if (status && status >= 500) return 'The server is having trouble right now. Please try again shortly.';
 
     return fallback;
+};
+
+// Whether a failure means "this session is not valid" as opposed to "the
+// server could not be reached". Only the former should end a session: a
+// timeout or a dropped connection must not sign a working session out.
+export const isAuthError = (error: unknown): boolean => {
+    if (!axios.isAxiosError(error)) return false;
+    const status = error.response?.status;
+    return status === 401 || status === 403;
 };
 
 // Request interceptor to add bearer token

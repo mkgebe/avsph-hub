@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, EyeOff, Shield, Users, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Shield, Users, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogin } from "@/hooks/useAuth";
 import { useStaffLogin } from "@/hooks/useAuthStaff";
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl, getApiErrorMessage, isApiUrlConfigured } from "@/utils/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 type LoginMode = "admin" | "staff";
@@ -19,8 +20,20 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSlow, setIsSlow] = useState(false);
+  const [apiMisconfigured, setApiMisconfigured] = useState(false);
   const adminLogin = useLogin();
   const staffLogin = useStaffLogin();
+  const activeLogin = mode === "admin" ? adminLogin : staffLogin;
+
+  // A deployed build with no NEXT_PUBLIC_API_URL points every request at the
+  // visitor's own machine, so no password will ever work. Say it on screen
+  // instead of leaving people to retry their credentials.
+  useEffect(() => {
+    setApiMisconfigured(
+      !isApiUrlConfigured() && window.location.hostname !== "localhost",
+    );
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +45,23 @@ export default function LoginPage() {
   };
 
   const isLoading = adminLogin.isPending || staffLogin.isPending;
+
+  // Waiting with no explanation is what makes a slow API read as a frozen
+  // app. After a few seconds, say what is being waited on.
+  useEffect(() => {
+    if (!isLoading) {
+      setIsSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsSlow(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  // The toast disappears on its own; the failure has to stay readable while
+  // the person decides what to do about it.
+  const errorMessage = activeLogin.error
+    ? getApiErrorMessage(activeLogin.error, "Invalid email or password.")
+    : null;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:px-6 lg:px-8 overflow-hidden relative selection:bg-foreground selection:text-background">
@@ -68,6 +98,8 @@ export default function LoginPage() {
                 setMode("admin");
                 setEmail("");
                 setPassword("");
+                adminLogin.reset();
+                staffLogin.reset();
               }}
               className={cn(
                 "relative z-10 flex items-center justify-center gap-2 py-1.5 text-sm font-medium transition-colors duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -84,6 +116,8 @@ export default function LoginPage() {
                 setMode("staff");
                 setEmail("");
                 setPassword("");
+                adminLogin.reset();
+                staffLogin.reset();
               }}
               className={cn(
                 "relative z-10 flex items-center justify-center gap-2 py-1.5 text-sm font-medium transition-colors duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -109,6 +143,18 @@ export default function LoginPage() {
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
             />
           </div>
+
+          {/* Configuration problem: no password can work until this is fixed */}
+          {apiMisconfigured && (
+            <div className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p>
+                This site has no API address configured, so sign-in cannot
+                reach the server. Set NEXT_PUBLIC_API_URL in the deployment
+                and redeploy.
+              </p>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -186,6 +232,25 @@ export default function LoginPage() {
                 </span>
               )}
             </Button>
+
+            {isLoading && isSlow && (
+              <p
+                className="text-center text-xs text-muted-foreground"
+                aria-live="polite"
+              >
+                Still waiting for {getApiBaseUrl()} to respond...
+              </p>
+            )}
+
+            {!isLoading && errorMessage && (
+              <div
+                role="alert"
+                className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>{errorMessage}</p>
+              </div>
+            )}
           </form>
         </div>
 

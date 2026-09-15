@@ -1,4 +1,4 @@
-import api, { setAuthToken } from "@/utils/api";
+import api, { AUTH_TIMEOUT_MS, setAuthToken } from "@/utils/api";
 import type {
   StaffLoginRequest,
   StaffLoginResponse,
@@ -12,13 +12,18 @@ export const setStaffAuthToken = setAuthToken;
 export const loginStaff = async (
   data: StaffLoginRequest,
 ): Promise<StaffLoginResponse> => {
-  const response = await api.post<StaffLoginResponse>("/staff/login", data);
+  const response = await api.post<StaffLoginResponse>("/staff/login", data, {
+    timeout: AUTH_TIMEOUT_MS,
+  });
   return response.data;
 };
 
 // See getCurrentAdmin: a 401 means "not a staff token", so this request opts
 // out of the global redirect-to-login.
 export const getCurrentStaff = async (): Promise<Staff> => {
-  const response = await api.get<Staff>("/staff/me", { skipAuthRedirect: true });
+  const response = await api.get<Staff>("/staff/me", {
+    skipAuthRedirect: true,
+    timeout: AUTH_TIMEOUT_MS,
+  });
   return response.data;
 };

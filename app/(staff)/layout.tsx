@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StaffTopbar } from "@/components/staff-topbar";
 import { useStaffStore } from "@/store/staff.store";
 import { useCurrentStaff } from "@/hooks/useAuthStaff";
+import { isAuthError } from "@/utils/api";
 import { Loader2 } from "lucide-react";
 
 export default function StaffLayout({
@@ -14,7 +15,10 @@ export default function StaffLayout({
 }) {
     const router = useRouter();
     const { isAuthenticated, setStaff, logout } = useStaffStore();
-    const { data: staff, isLoading, isError } = useCurrentStaff();
+    const { data: staff, isLoading, isError, error } = useCurrentStaff();
+    // See the admin layout: only a rejected token ends the session, never a
+    // timeout or an unreachable API.
+    const sessionRejected = isAuthError(error);
 
     useEffect(() => {
         // If we have fresh staff data from API, update the store
@@ -28,12 +32,12 @@ export default function StaffLayout({
         if (!isAuthenticated && !isLoading) {
             router.push("/login");
         }
-        // If there's an auth error (invalid token), logout and redirect
-        if (isError && isAuthenticated) {
+        // If the token was rejected, logout and redirect
+        if (sessionRejected && isAuthenticated) {
             logout();
             router.push("/login");
         }
-    }, [isAuthenticated, isLoading, isError, router, logout]);
+    }, [isAuthenticated, isLoading, sessionRejected, router, logout]);
 
     // Show loading state while checking authentication
     if (isLoading || (!isAuthenticated && !isError)) {
